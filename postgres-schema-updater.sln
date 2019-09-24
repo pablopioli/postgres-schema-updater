@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29318.209
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "postgres-schema-updater", "src\postgres-schema-updater.csproj", "{398A63AD-618E-4FA6-9F60-72B6E35569EB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "samples", "samples\samples\samples.csproj", "{3517303B-621E-420F-AF79-9A671728BAEC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{398A63AD-618E-4FA6-9F60-72B6E35569EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{398A63AD-618E-4FA6-9F60-72B6E35569EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{398A63AD-618E-4FA6-9F60-72B6E35569EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{398A63AD-618E-4FA6-9F60-72B6E35569EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3517303B-621E-420F-AF79-9A671728BAEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3517303B-621E-420F-AF79-9A671728BAEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3517303B-621E-420F-AF79-9A671728BAEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3517303B-621E-420F-AF79-9A671728BAEC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {AE9457EB-D42D-4533-B384-652EC1CD353F}
+	EndGlobalSection
+EndGlobal
