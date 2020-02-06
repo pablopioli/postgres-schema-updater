@@ -3,11 +3,11 @@ using System.Linq;
 
 namespace Postgres.SchemaUpdater
 {
-    public class TableCatalog
+    public class Catalog
     {
-        private Dictionary<string, List<TableDefinition>> _schemas = new Dictionary<string, List<TableDefinition>>();
+        private Dictionary<string, List<Table>> _schemas = new Dictionary<string, List<Table>>();
 
-        public void AddTable(TableDefinition tableDefinition)
+        public void AddTable(Table tableDefinition)
         {
             var schema = tableDefinition.Schema;
 
@@ -17,11 +17,11 @@ namespace Postgres.SchemaUpdater
             }
             else
             {
-                _schemas[schema] = new List<TableDefinition>() { tableDefinition };
+                _schemas[schema] = new List<Table>() { tableDefinition };
             }
         }
 
-        public TableDefinition GetTable(string schema, string tableName)
+        public Table GetTable(string schema, string tableName)
         {
             if (_schemas.TryGetValue(schema, out var existingSchemaTables))
             {
@@ -38,7 +38,7 @@ namespace Postgres.SchemaUpdater
             return _schemas.Keys.ToArray();
         }
 
-        public TableDefinition[] GetTablesOfSchema(string schema)
+        public Table[] GetTablesOfSchema(string schema)
         {
             if (_schemas.TryGetValue(schema, out var existingSchemaTables))
             {
@@ -46,7 +46,7 @@ namespace Postgres.SchemaUpdater
             }
             else
             {
-                return System.Array.Empty<TableDefinition>();
+                return System.Array.Empty<Table>();
             }
         }
     }

@@ -17,16 +17,19 @@ namespace samples
                 Database = "fill this"
             };
 
-            DdlTools.CreateDatabase(set);
+            // You can create the database if you have sufficient rights
+            // DdlTools.CreateDatabase(set);
 
-            var catalog = new TableCatalog();
+            var catalog = new Catalog();
 
-            var columns = new List<TableColumn>()
+            var columns = new List<Column>()
             {
-                new TableColumn("id", "uuid", nullable: false),
-                new TableColumn("name", "varchar", nullable: false)
+                new Column("id", "uuid", nullable: false),
+                new Column("name", "varchar", nullable: false)
             };
-            var table = new TableDefinition("crm", "persons", columns);
+
+            var table = new Table("crm", "persons", columns).AddIndex("name", "name");
+
             catalog.AddTable(table);
 
             var scripts = DdlTools.GenerateUpgradeScripts(catalog, set);

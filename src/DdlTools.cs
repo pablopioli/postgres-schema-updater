@@ -1,6 +1,6 @@
-﻿using System.Linq;
+﻿using Npgsql;
 using System.Collections.Generic;
-using Npgsql;
+using System.Linq;
 using System.Text;
 
 namespace Postgres.SchemaUpdater
@@ -12,12 +12,12 @@ namespace Postgres.SchemaUpdater
             return "Create Schema If Not Exists " + $"\"{schema.Replace("\"", "")}\"";
         }
 
-        public static string ScriptDropTable(TableDefinition tableDefinition)
+        public static string ScriptDropTable(Table tableDefinition)
         {
             return "Drop Table If Exists " + $"\"{tableDefinition.Name.Replace("\"", "")}\"";
         }
 
-        public static ICollection<string> ScriptCreateTable(TableDefinition tableDefinition, bool includeDropCommand)
+        public static ICollection<string> ScriptCreateTable(Table tableDefinition, bool includeDropCommand)
         {
             var scripts = new List<string>();
 
@@ -29,7 +29,7 @@ namespace Postgres.SchemaUpdater
             var command = new StringBuilder();
             command.Append("Create Table " + $"{tableDefinition.Schema}.{tableDefinition.Name}" + " (");
 
-            TableColumn primaryKey = null;
+            Column primaryKey = null;
             foreach (var column in tableDefinition.Columns)
             {
                 command.Append(BuildColumn(column) + ", ");
@@ -43,22 +43,28 @@ namespace Postgres.SchemaUpdater
 
             if (primaryKey != null)
             {
-                command.Append(", CONSTRAINT PK_" + tableDefinition.Name + " PRIMARY KEY (" + primaryKey.Name + ")");
+                command.Append(", CONSTRAINT PK_").Append(tableDefinition.Name).Append(" PRIMARY KEY (").Append(primaryKey.Name).Append(')');
             }
 
             command.Append(")");
 
             scripts.Add(command.ToString());
 
+            foreach (var index in tableDefinition.Indexs)
+            {
+                scripts.Add(
+                    $"CREATE INDEX {index.Name} on {tableDefinition.Schema}.{tableDefinition.Name} ({index.Expression})");
+            }
+
             return scripts;
         }
 
-        private static string BuildColumn(TableColumn column)
+        private static string BuildColumn(Column column)
         {
             return column.Name.ToLowerInvariant() + " " + column.DataType + (column.Nullable ? "" : " NOT NULL");
         }
 
-        public static ICollection<string> ScriptCreateCatalog(TableCatalog catalog)
+        public static ICollection<string> ScriptCreateCatalog(Catalog catalog)
         {
             var scripts = new List<string>();
 
@@ -149,9 +155,9 @@ namespace Postgres.SchemaUpdater
             }
         }
 
-        public static TableCatalog QuerySchema(ServerSettings serverSettings)
+        public static Catalog QuerySchema(ServerSettings serverSettings)
         {
-            var catalog = new TableCatalog();
+            var catalog = new Catalog();
 
             using (var connection = new NpgsqlConnection(serverSettings.GetConnectionString()))
             {
@@ -160,18 +166,29 @@ namespace Postgres.SchemaUpdater
                 IList<SchemaInfo> schemaInfo;
                 using (var command = connection.CreateCommand())
                 {
-                    var commandText =
-                        @"SELECT t.table_schema as schemaname, t.table_name as tablename, c.column_name as columname
+                    command.CommandText =
+@"SELECT t.table_schema as schemaname, t.table_name as tablename, c.column_name as columname
 FROM information_schema.tables t
 inner join Information_Schema.Columns c on t.table_name = c.table_name
 where t.table_schema <> 'information_schema' and t.table_schema <> 'pg_catalog'";
-
-                    command.CommandText = commandText;
 
                     using (var reader = command.ExecuteReader())
                     {
                         schemaInfo = reader.ToList(x =>
                         new SchemaInfo(x.GetString(0), x.GetString(1), x.GetString(2)));
+                    }
+                }
+
+                IList<SchemaIndex> indexes;
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText =
+                        "SELECT schemaname as schema, relname as table, indexrelname as iname FROM pg_stat_all_indexes";
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        indexes = reader.ToList(x =>
+                        new SchemaIndex { Schema = x.GetString(0), Table = x.GetString(1), Name = x.GetString(2) });
                     }
                 }
 
@@ -191,13 +208,19 @@ where t.table_schema <> 'information_schema' and t.table_schema <> 'pg_catalog'"
                 {
                     foreach (var tableItem in schemaItem.Tables)
                     {
-                        var columns = new List<TableColumn>();
+                        var columns = new List<Column>();
                         foreach (var field in tableItem.Fields)
                         {
-                            columns.Add(new TableColumn(field.Field, "unknown"));
+                            columns.Add(new Column(field.Field, "unknown"));
                         }
 
-                        var table = new TableDefinition(schemaItem.Schema, tableItem.Table, columns);
+                        var table = new Table(schemaItem.Schema, tableItem.Table, columns);
+
+                        foreach (var index in indexes.Where(x => x.Schema == table.Schema && x.Table == tableItem.Table))
+                        {
+                            table.AddIndex(index.Name, string.Empty);
+                        }
+
                         catalog.AddTable(table);
                     }
                 }
@@ -208,7 +231,7 @@ where t.table_schema <> 'information_schema' and t.table_schema <> 'pg_catalog'"
             return catalog;
         }
 
-        private static TableCatalog ReadPrimaryKeys(TableCatalog catalog, NpgsqlConnection connection)
+        private static Catalog ReadPrimaryKeys(Catalog catalog, NpgsqlConnection connection)
         {
             using (var command = connection.CreateCommand())
             {
@@ -256,7 +279,7 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
             internal string PrimaryKey;
         }
 
-        public static ICollection<string> GenerateUpgradeScripts(TableCatalog catalog, ServerSettings serverSettings)
+        public static ICollection<string> GenerateUpgradeScripts(Catalog catalog, ServerSettings serverSettings)
         {
             var currentSchema = QuerySchema(serverSettings);
 
@@ -279,12 +302,17 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
                 upgradeScripts.AddRange(ScriptNewColumns(modifiedTable));
             }
 
+            foreach (var index in diff.NewIndexes())
+            {
+                upgradeScripts.Add($"CREATE INDEX {index.Index.Name} on {index.Table.Schema}.{index.Table.Name} ({index.Index.Expression})");
+            }
+
             return upgradeScripts;
         }
 
-        internal static TableUpgradeInfo GetSchemaDifferences(TableCatalog currentCatalog, TableCatalog desiredCatalog)
+        internal static UpgradeInfo GetSchemaDifferences(Catalog currentCatalog, Catalog desiredCatalog)
         {
-            var upgradeInfo = new TableUpgradeInfo();
+            var upgradeInfo = new UpgradeInfo();
 
             foreach (var schema in desiredCatalog.GetSchemas().Except(currentCatalog.GetSchemas()))
             {
@@ -306,12 +334,17 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
                     }
                     else
                     {
-                        var columns = new List<TableColumn>();
+                        var columns = new List<Column>();
                         columns.AddRange(desiredTable.Columns.Except(currentTable.Columns, new ColumnComparer()));
                         if (columns.Count > 0)
                         {
-                            var modifiedTable = new TableDefinition(desiredTable.Schema, desiredTable.Name, columns);
+                            var modifiedTable = new Table(desiredTable.Schema, desiredTable.Name, columns);
                             upgradeInfo.AddModifiedTable(modifiedTable);
+                        }
+
+                        foreach (var index in desiredTable.Indexs.Except(currentTable.Indexs, new IndexComparer()))
+                        {
+                            upgradeInfo.AddNewIndex(new UpgradeInfo.IndexInfo { Table = currentTable, Index = index });
                         }
                     }
                 }
@@ -320,9 +353,9 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
             return upgradeInfo;
         }
 
-        internal class ColumnComparer : IEqualityComparer<TableColumn>
+        internal class ColumnComparer : IEqualityComparer<Column>
         {
-            public bool Equals(TableColumn x, TableColumn y)
+            public bool Equals(Column x, Column y)
             {
                 if (x == null || y == null)
                 {
@@ -332,7 +365,7 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
                 return x.Name == y.Name;
             }
 
-            public int GetHashCode(TableColumn obj)
+            public int GetHashCode(Column obj)
             {
                 if (obj == null)
                 {
@@ -343,7 +376,30 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
             }
         }
 
-        private static ICollection<string> ScriptNewColumns(TableDefinition tableDefinition)
+        internal class IndexComparer : IEqualityComparer<Index>
+        {
+            public bool Equals(Index x, Index y)
+            {
+                if (x == null || y == null)
+                {
+                    return false;
+                }
+
+                return x.Name == y.Name;
+            }
+
+            public int GetHashCode(Index obj)
+            {
+                if (obj == null)
+                {
+                    return 0;
+                }
+
+                return obj.Name.GetHashCode();
+            }
+        }
+
+        private static ICollection<string> ScriptNewColumns(Table tableDefinition)
         {
             var result = new List<string>();
 
@@ -370,5 +426,11 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
             return result;
         }
 
+        private class SchemaIndex
+        {
+            public string Schema;
+            public string Table;
+            public string Name;
+        }
     }
 }
