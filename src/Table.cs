@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Postgres.SchemaUpdater
+﻿namespace Postgres.SchemaUpdater
 {
     public class Table
     {

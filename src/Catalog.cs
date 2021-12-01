@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-
-namespace Postgres.SchemaUpdater
+﻿namespace Postgres.SchemaUpdater
 {
     public class Catalog
     {
@@ -46,7 +43,7 @@ namespace Postgres.SchemaUpdater
             }
             else
             {
-                return System.Array.Empty<Table>();
+                return Array.Empty<Table>();
             }
         }
     }

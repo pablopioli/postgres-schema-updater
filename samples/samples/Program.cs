@@ -1,13 +1,11 @@
 ﻿using Npgsql;
 using Postgres.SchemaUpdater;
-using System;
-using System.Collections.Generic;
 
 namespace samples
 {
-    static class Program
+    public static class Program
     {
-        static void Main(string[] args)
+        private static void Main()
         {
             var set = new ServerSettings
             {
@@ -28,24 +26,22 @@ namespace samples
                 new Column("name", "varchar", nullable: false)
             };
 
-            var table = new Table("crm", "persons", columns).AddIndex("name", "name");
+            var table = new Table("crm", "persons", columns).AddIndex("name", "(name)");
 
             catalog.AddTable(table);
 
             var scripts = DdlTools.GenerateUpgradeScripts(catalog, set);
 
-            using (var connection = new NpgsqlConnection(set.GetConnectionString()))
+            using var connection = new NpgsqlConnection(set.GetConnectionString());
+            connection.Open();
+
+            foreach (var script in scripts)
             {
-                connection.Open();
+                Console.WriteLine(script);
 
-                foreach (var script in scripts)
-                {
-                    Console.WriteLine(script);
-
-                    var command = connection.CreateCommand();
-                    command.CommandText = script;
-                    command.ExecuteNonQuery();
-                }
+                var command = connection.CreateCommand();
+                command.CommandText = script;
+                command.ExecuteNonQuery();
             }
         }
     }

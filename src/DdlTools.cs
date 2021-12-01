@@ -1,7 +1,4 @@
 ﻿using Npgsql;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace Postgres.SchemaUpdater
@@ -54,7 +51,7 @@ namespace Postgres.SchemaUpdater
             foreach (var index in tableDefinition.Indexs)
             {
                 scripts.Add(
-                    $"CREATE INDEX {index.Name} on {tableDefinition.Schema}.{tableDefinition.Name} ({index.Expression})");
+                    $"CREATE INDEX {index.Name} on {tableDefinition.Schema}.{tableDefinition.Name} {index.Expression}");
             }
 
             return scripts;
@@ -101,7 +98,7 @@ namespace Postgres.SchemaUpdater
                 command.CommandText =
                     "select datname from pg_catalog.pg_database where datname=@database";
 
-                command.Parameters.Add(new Npgsql.NpgsqlParameter("database", serverSettings.Database));
+                command.Parameters.Add(new NpgsqlParameter("database", serverSettings.Database));
 
                 var res = command.ExecuteScalar();
                 if (res != null)
@@ -294,7 +291,7 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
             {
                 if (index.Index != null && index.Table != null)
                 {
-                    upgradeScripts.Add($"CREATE INDEX {index.Index.Name} on {index.Table.Schema}.{index.Table.Name} ({index.Index.Expression})");
+                    upgradeScripts.Add($"CREATE INDEX {index.Index.Name} on {index.Table.Schema}.{index.Table.Name} {index.Index.Expression}");
                 }
             }
 

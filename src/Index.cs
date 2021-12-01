@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Postgres.SchemaUpdater
+﻿namespace Postgres.SchemaUpdater
 {
     public class Index
     {
