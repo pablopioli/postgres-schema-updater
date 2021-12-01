@@ -1,4 +1,5 @@
 ﻿using Npgsql;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -27,12 +28,12 @@ namespace Postgres.SchemaUpdater
             }
 
             var command = new StringBuilder();
-            command.Append("Create Table " + $"{tableDefinition.Schema}.{tableDefinition.Name}" + " (");
+            command.Append("Create Table ").Append(tableDefinition.Schema).Append('.').Append(tableDefinition.Name).Append(" (");
 
-            Column primaryKey = null;
+            Column? primaryKey = null;
             foreach (var column in tableDefinition.Columns)
             {
-                command.Append(BuildColumn(column) + ", ");
+                command.Append(BuildColumn(column)).Append(", ");
 
                 if (column == tableDefinition.PrimaryKey)
                 {
@@ -46,7 +47,7 @@ namespace Postgres.SchemaUpdater
                 command.Append(", CONSTRAINT PK_").Append(tableDefinition.Name).Append(" PRIMARY KEY (").Append(primaryKey.Name).Append(')');
             }
 
-            command.Append(")");
+            command.Append(')');
 
             scripts.Add(command.ToString());
 
@@ -91,27 +92,25 @@ namespace Postgres.SchemaUpdater
                 Database = "postgres"
             };
 
-            using (var connection = new NpgsqlConnection(genericSettings.GetConnectionString()))
+            using var connection = new NpgsqlConnection(genericSettings.GetConnectionString());
+            connection.Open();
+
+            var databaseExists = false;
+            using (var command = connection.CreateCommand())
             {
-                connection.Open();
+                command.CommandText =
+                    "select datname from pg_catalog.pg_database where datname=@database";
 
-                var databaseExists = false;
-                using (var command = connection.CreateCommand())
+                command.Parameters.Add(new Npgsql.NpgsqlParameter("database", serverSettings.Database));
+
+                var res = command.ExecuteScalar();
+                if (res != null)
                 {
-                    command.CommandText =
-                        "select datname from pg_catalog.pg_database where datname=@database";
-
-                    command.Parameters.Add(new Npgsql.NpgsqlParameter("database", serverSettings.Database));
-
-                    var res = command.ExecuteScalar();
-                    if (res != null)
-                    {
-                        databaseExists = true;
-                    }
+                    databaseExists = true;
                 }
-
-                return databaseExists;
             }
+
+            return databaseExists;
         }
 
         public static void CreateDatabase(ServerSettings serverSettings)
@@ -124,34 +123,30 @@ namespace Postgres.SchemaUpdater
                 Database = "postgres"
             };
 
-            using (var connection = new NpgsqlConnection(genericSettings.GetConnectionString()))
+            using var connection = new NpgsqlConnection(genericSettings.GetConnectionString());
+            connection.Open();
+
+            var databaseExists = false;
+            using (var command = connection.CreateCommand())
             {
-                connection.Open();
+                command.CommandText =
+                    "select datname from pg_catalog.pg_database where datname=@database";
 
-                var databaseExists = false;
-                using (var command = connection.CreateCommand())
+                command.Parameters.Add(new NpgsqlParameter("database", serverSettings.Database));
+
+                var res = command.ExecuteScalar();
+                if (res != null)
                 {
-                    command.CommandText =
-                        "select datname from pg_catalog.pg_database where datname=@database";
-
-                    command.Parameters.Add(new NpgsqlParameter("database", serverSettings.Database));
-
-                    var res = command.ExecuteScalar();
-                    if (res != null)
-                        databaseExists = true;
+                    databaseExists = true;
                 }
+            }
 
-                if (!databaseExists)
-                {
-                    using (var command = connection.CreateCommand())
-                    {
-#pragma warning disable CA2100 // Review SQL queries for security vulnerabilities
-                        // Parameters don't work here
-                        command.CommandText = "Create Database " + serverSettings.Database;
-#pragma warning restore CA2100 // Review SQL queries for security vulnerabilities
-                        command.ExecuteNonQuery();
-                    }
-                }
+            if (!databaseExists)
+            {
+                using var command = connection.CreateCommand();
+                // Parameters don't work here
+                command.CommandText = "Create Database " + serverSettings.Database;
+                command.ExecuteNonQuery();
             }
         }
 
@@ -172,11 +167,9 @@ FROM information_schema.tables t
 inner join Information_Schema.Columns c on t.table_name = c.table_name
 where t.table_schema <> 'information_schema' and t.table_schema <> 'pg_catalog'";
 
-                    using (var reader = command.ExecuteReader())
-                    {
-                        schemaInfo = reader.ToList(x =>
-                        new SchemaInfo(x.GetString(0), x.GetString(1), x.GetString(2)));
-                    }
+                    using var reader = command.ExecuteReader();
+                    schemaInfo = reader.ToList(x =>
+                    new SchemaInfo(x.GetString(0), x.GetString(1), x.GetString(2)));
                 }
 
                 IList<SchemaIndex> indexes;
@@ -185,11 +178,9 @@ where t.table_schema <> 'information_schema' and t.table_schema <> 'pg_catalog'"
                     command.CommandText =
                         "SELECT schemaname as schema, relname as table, indexrelname as iname FROM pg_stat_all_indexes";
 
-                    using (var reader = command.ExecuteReader())
-                    {
-                        indexes = reader.ToList(x =>
-                        new SchemaIndex { Schema = x.GetString(0), Table = x.GetString(1), Name = x.GetString(2) });
-                    }
+                    using var reader = command.ExecuteReader();
+                    indexes = reader.ToList(x =>
+                    new SchemaIndex { Schema = x.GetString(0), Table = x.GetString(1), Name = x.GetString(2) });
                 }
 
                 var groupedSchemas = from x in schemaInfo
@@ -244,26 +235,23 @@ ON TC.CONSTRAINT_TYPE = 'PRIMARY KEY' AND
 TC.CONSTRAINT_NAME = KU.CONSTRAINT_NAME
 ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
 
-                using (var reader = command.ExecuteReader())
+                using var reader = command.ExecuteReader();
+                var pkData = reader.ToList(x => new PrimaryKeyData
                 {
-                    var pkData = reader.ToList(x => new PrimaryKeyData
-                    {
-                        Schema = x.GetString(0),
-                        TableName = x.GetString(1),
-                        PrimaryKey = x.GetString(2)
-                    });
+                    Schema = x.GetString(0),
+                    TableName = x.GetString(1),
+                    PrimaryKey = x.GetString(2)
+                });
 
-                    foreach (var primaryKey in pkData)
+                foreach (var primaryKey in pkData)
+                {
+                    var table = catalog.GetTable(primaryKey.Schema, primaryKey.TableName);
+                    if (table != null)
                     {
-                        var table = catalog.GetTable(primaryKey.Schema, primaryKey.TableName);
-                        if (table != null)
+                        var pkColumn = table.Columns.FirstOrDefault(x => x.Name == primaryKey.PrimaryKey);
+                        if (pkColumn != null)
                         {
-                            var pkColumn = table.Columns.FirstOrDefault(x => x.Name == primaryKey.PrimaryKey);
-                            if (pkColumn != null)
-                            {
-                                table.PrimaryKey = pkColumn;
-                            }
-
+                            table.PrimaryKey = pkColumn;
                         }
                     }
                 }
@@ -274,9 +262,9 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
 
         private class PrimaryKeyData
         {
-            internal string Schema;
-            internal string TableName;
-            internal string PrimaryKey;
+            internal string Schema = string.Empty;
+            internal string TableName = string.Empty;
+            internal string PrimaryKey = string.Empty;
         }
 
         public static ICollection<string> GenerateUpgradeScripts(Catalog catalog, ServerSettings serverSettings)
@@ -304,7 +292,10 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
 
             foreach (var index in diff.NewIndexes())
             {
-                upgradeScripts.Add($"CREATE INDEX {index.Index.Name} on {index.Table.Schema}.{index.Table.Name} ({index.Index.Expression})");
+                if (index.Index != null && index.Table != null)
+                {
+                    upgradeScripts.Add($"CREATE INDEX {index.Index.Name} on {index.Table.Schema}.{index.Table.Name} ({index.Index.Expression})");
+                }
             }
 
             return upgradeScripts;
@@ -326,7 +317,7 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
 
                 foreach (var desiredTable in desiredTables)
                 {
-                    var currentTable = currentTables.FirstOrDefault(x => x.Schema == desiredTable.Schema && x.Name == desiredTable.Name);
+                    var currentTable = Array.Find(currentTables, x => x.Schema == desiredTable.Schema && x.Name == desiredTable.Name);
 
                     if (currentTable == null)
                     {
@@ -355,7 +346,7 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
 
         internal class ColumnComparer : IEqualityComparer<Column>
         {
-            public bool Equals(Column x, Column y)
+            public bool Equals(Column? x, Column? y)
             {
                 if (x == null || y == null)
                 {
@@ -378,7 +369,7 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
 
         internal class IndexComparer : IEqualityComparer<Index>
         {
-            public bool Equals(Index x, Index y)
+            public bool Equals(Index? x, Index? y)
             {
                 if (x == null || y == null)
                 {
@@ -410,7 +401,7 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
             {
                 if (firstPass)
                 {
-                    command.Append($"Alter Table {tableDefinition.Schema}.{tableDefinition.Name} Add ");
+                    command.Append("Alter Table ").Append(tableDefinition.Schema).Append('.').Append(tableDefinition.Name).Append(" Add ");
                     firstPass = false;
                 }
                 else
@@ -428,9 +419,9 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
 
         private class SchemaIndex
         {
-            public string Schema;
-            public string Table;
-            public string Name;
+            public string Schema = string.Empty;
+            public string Table = string.Empty;
+            public string Name = string.Empty;
         }
     }
 }

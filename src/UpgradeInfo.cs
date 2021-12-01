@@ -51,8 +51,8 @@ namespace Postgres.SchemaUpdater
 
         internal class IndexInfo
         {
-            public Table Table { get; set; }
-            public Index Index { get; set; }
+            public Table? Table { get; set; }
+            public Index? Index { get; set; }
         }
     }
 }

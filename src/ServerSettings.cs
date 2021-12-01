@@ -74,6 +74,5 @@ namespace Postgres.SchemaUpdater
 
             return connString.ToString();
         }
-
     }
 }

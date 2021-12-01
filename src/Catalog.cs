@@ -5,7 +5,7 @@ namespace Postgres.SchemaUpdater
 {
     public class Catalog
     {
-        private Dictionary<string, List<Table>> _schemas = new Dictionary<string, List<Table>>();
+        private readonly Dictionary<string, List<Table>> _schemas = new();
 
         public void AddTable(Table tableDefinition)
         {
@@ -21,11 +21,11 @@ namespace Postgres.SchemaUpdater
             }
         }
 
-        public Table GetTable(string schema, string tableName)
+        public Table? GetTable(string schema, string tableName)
         {
             if (_schemas.TryGetValue(schema, out var existingSchemaTables))
             {
-                return existingSchemaTables.FirstOrDefault(x => x.Name == tableName);
+                return existingSchemaTables.Find(x => x.Name == tableName);
             }
             else
             {
