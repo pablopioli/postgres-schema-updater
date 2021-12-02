@@ -149,74 +149,77 @@ namespace Postgres.SchemaUpdater
 
         public static Catalog QuerySchema(ServerSettings serverSettings)
         {
+            using var connection = new NpgsqlConnection(serverSettings.GetConnectionString());
+            connection.Open();
+            var catalog = QuerySchema(connection);
+            connection.Close();
+
+            return catalog;
+        }
+
+        public static Catalog QuerySchema(NpgsqlConnection connection)
+        {
             var catalog = new Catalog();
 
-            using (var connection = new NpgsqlConnection(serverSettings.GetConnectionString()))
+            IList<SchemaInfo> schemaInfo;
+            using (var command = connection.CreateCommand())
             {
-                connection.Open();
-
-                IList<SchemaInfo> schemaInfo;
-                using (var command = connection.CreateCommand())
-                {
-                    command.CommandText =
+                command.CommandText =
 @"SELECT t.table_schema as schemaname, t.table_name as tablename, c.column_name as columname
 FROM information_schema.tables t
 inner join Information_Schema.Columns c on t.table_name = c.table_name
 where t.table_schema <> 'information_schema' and t.table_schema <> 'pg_catalog'";
 
-                    using var reader = command.ExecuteReader();
-                    schemaInfo = reader.ToList(x =>
-                    new SchemaInfo(x.GetString(0), x.GetString(1), x.GetString(2)));
-                }
-
-                IList<SchemaIndex> indexes;
-                using (var command = connection.CreateCommand())
-                {
-                    command.CommandText =
-                        "SELECT schemaname as schema, relname as table, indexrelname as iname FROM pg_stat_all_indexes";
-
-                    using var reader = command.ExecuteReader();
-                    indexes = reader.ToList(x =>
-                    new SchemaIndex { Schema = x.GetString(0), Table = x.GetString(1), Name = x.GetString(2) });
-                }
-
-                var groupedSchemas = from x in schemaInfo
-                                     group x by x.Schema
-                                         into tables
-                                     select new
-                                     {
-                                         Schema = tables.Key,
-                                         Tables = from y in tables
-                                                  group y by y.Table
-                                                          into fields
-                                                  select new { Table = fields.Key, Fields = fields }
-                                     };
-
-                foreach (var schemaItem in groupedSchemas)
-                {
-                    foreach (var tableItem in schemaItem.Tables)
-                    {
-                        var columns = new List<Column>();
-                        foreach (var field in tableItem.Fields)
-                        {
-                            columns.Add(new Column(field.Field, "unknown"));
-                        }
-
-                        var table = new Table(schemaItem.Schema, tableItem.Table, columns);
-
-                        foreach (var index in indexes.Where(x => x.Schema == table.Schema && x.Table == tableItem.Table))
-                        {
-                            table.AddIndex(index.Name, string.Empty);
-                        }
-
-                        catalog.AddTable(table);
-                    }
-                }
-
-                catalog = ReadPrimaryKeys(catalog, connection);
+                using var reader = command.ExecuteReader();
+                schemaInfo = reader.ToList(x =>
+                new SchemaInfo(x.GetString(0), x.GetString(1), x.GetString(2)));
             }
 
-            return catalog;
+            IList<SchemaIndex> indexes;
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText =
+                    "SELECT schemaname as schema, relname as table, indexrelname as iname FROM pg_stat_all_indexes";
+
+                using var reader = command.ExecuteReader();
+                indexes = reader.ToList(x =>
+                new SchemaIndex { Schema = x.GetString(0), Table = x.GetString(1), Name = x.GetString(2) });
+            }
+
+            var groupedSchemas = from x in schemaInfo
+                                 group x by x.Schema
+                                     into tables
+                                 select new
+                                 {
+                                     Schema = tables.Key,
+                                     Tables = from y in tables
+                                              group y by y.Table
+                                                      into fields
+                                              select new { Table = fields.Key, Fields = fields }
+                                 };
+
+            foreach (var schemaItem in groupedSchemas)
+            {
+                foreach (var tableItem in schemaItem.Tables)
+                {
+                    var columns = new List<Column>();
+                    foreach (var field in tableItem.Fields)
+                    {
+                        columns.Add(new Column(field.Field, "unknown"));
+                    }
+
+                    var table = new Table(schemaItem.Schema, tableItem.Table, columns);
+
+                    foreach (var index in indexes.Where(x => x.Schema == table.Schema && x.Table == tableItem.Table))
+                    {
+                        table.AddIndex(index.Name, string.Empty);
+                    }
+
+                    catalog.AddTable(table);
+                }
+            }
+
+            return ReadPrimaryKeys(catalog, connection);
         }
 
         private static Catalog ReadPrimaryKeys(Catalog catalog, NpgsqlConnection connection)
