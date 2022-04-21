@@ -4,6 +4,14 @@
     {
         private readonly Dictionary<string, List<Table>> _schemas = new();
 
+        public Catalog()
+        { }
+
+        public Catalog(Table tableDefinition)
+        {
+            AddTable(tableDefinition);
+        }
+
         public void AddTable(Table tableDefinition)
         {
             var schema = tableDefinition.Schema;

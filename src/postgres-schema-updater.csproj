@@ -15,7 +15,7 @@
 		<PackageProjectUrl>https://github.com/pablopioli/postgres-schema-updater</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/pablopioli/postgres-schema-updater</RepositoryUrl>
 		<Description>A library to implement state based schema updates in PostgreSQL</Description>
-		<Version>3.1.0</Version>
+		<Version>3.2.0</Version>
 	</PropertyGroup>
 
 	<ItemGroup>

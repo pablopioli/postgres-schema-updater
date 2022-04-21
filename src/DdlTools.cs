@@ -157,6 +157,25 @@ namespace Postgres.SchemaUpdater
             return catalog;
         }
 
+        public static bool DoesTableExists(NpgsqlConnection connection, string tableName)
+        {
+            return DoesTableExists(connection, "public", tableName);
+        }
+
+        public static bool DoesTableExists(NpgsqlConnection connection, string schema, string tableName)
+        {
+            using var command = connection.CreateCommand();
+
+            command.CommandText =
+$@"SELECT count(*)
+FROM information_schema.tables t
+where t.table_schema = '{schema}' and t.table_name = '{tableName}'";
+
+            var count = command.ExecuteScalar();
+
+            return count != null && (long)count == 1;
+        }
+
         public static Catalog QuerySchema(NpgsqlConnection connection)
         {
             var catalog = new Catalog();
@@ -270,7 +289,17 @@ ORDER BY KU.TABLE_NAME, KU.ORDINAL_POSITION";
         public static ICollection<string> GenerateUpgradeScripts(Catalog catalog, ServerSettings serverSettings)
         {
             var currentSchema = QuerySchema(serverSettings);
+            return GenerateUpgradeScripts(catalog, currentSchema);
+        }
 
+        public static ICollection<string> GenerateUpgradeScripts(Catalog catalog, NpgsqlConnection connection)
+        {
+            var currentSchema = QuerySchema(connection);
+            return GenerateUpgradeScripts(catalog, currentSchema);
+        }
+
+        private static ICollection<string> GenerateUpgradeScripts(Catalog catalog, Catalog currentSchema)
+        {
             var diff = GetSchemaDifferences(currentSchema, catalog);
 
             var upgradeScripts = new List<string>();
