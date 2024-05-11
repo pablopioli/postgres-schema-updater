@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<OutputType>Library</OutputType>
-		<TargetFramework>net6.0</TargetFramework>
+		<TargetFramework>net8.0</TargetFramework>
 		<RootNamespace>Postgres.SchemaUpdater</RootNamespace>
 		<ApplicationIcon />
 		<StartupObject />
@@ -15,11 +15,11 @@
 		<PackageProjectUrl>https://github.com/pablopioli/postgres-schema-updater</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/pablopioli/postgres-schema-updater</RepositoryUrl>
 		<Description>A library to implement state based schema updates in PostgreSQL</Description>
-		<Version>3.2.0</Version>
+		<Version>4.0.0</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Npgsql" Version="6.0.0" />
+		<PackageReference Include="Npgsql" Version="8.0.3" />
 	</ItemGroup>
 
 	<ItemGroup>
